@@ -1,0 +1,5 @@
+{
+    "python.pythonPath": "/home/leo/Enviroments/data-science/bin/python",
+    "editor.tabSize": 4,
+    "python.linting.pylintEnabled": false,
+}
