@@ -12,7 +12,7 @@ from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
 import gym_super_mario_bros
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
 env = gym_super_mario_bros.make('SuperMarioBros-v2')
-env = BinarySpaceToDiscreteSpaceEnv(env, COMPLEX_MOVEMENT)
+env = BinarySpaceToDiscreteSpaceEnv(env, S)
 
 STEPS = 0
 GENERATIONS = 0
@@ -114,7 +114,7 @@ def run(config_file):
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
-
+    """
     # Create the population, which is the top-level object for a NEAT run.
     p = neat.Population(config)
 
@@ -128,6 +128,7 @@ def run(config_file):
     pe = neat.ParallelEvaluator(4, selection)
     best_genome = p.run(pe.evaluate, 2)
 
+    eval(best_genome, config)
     # Display the winning genome.
     # print('\nBest genome:\n{!s}'.format(best_genome))
 
@@ -137,9 +138,10 @@ def run(config_file):
     # Saving best genome
     print('Saving best genome to %s' % ('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS)))
     dump(best_genome, open('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='wb'), protocol=HIGHEST_PROTOCOL)
-
-    #s = load(open('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='rb'))
-    #eval(s, config)
+    """
+    s = load(open('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='rb'))
+    #STEPS = 5000
+    eval(s, config)
     #node_names = {-1:'A', -2: 'B', 0:'A XOR B'}
     #visualize.draw_net(config, best_genome, True, filename='mario.gv' ,node_names=node_names)
     #visualize.plot_stats(stats, ylog=False, view=True)
