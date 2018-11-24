@@ -1,22 +1,65 @@
-
 from __future__ import print_function
+import numpy as np
+from cv2 import cv2
+import utils
 import os
-import neat 
+import neat
 import visualize
+# OpenAI Gym Imports
+from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
+import gym_super_mario_bros
+from gym_super_mario_bros.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
+env = gym_super_mario_bros.make('SuperMarioBros-v2')
+env = BinarySpaceToDiscreteSpaceEnv(env, SIMPLE_MOVEMENT)
 
+STEPS = 5000
 
 # 2-input XOR inputs and expected outputs.
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
-xor_outputs = [   (0.0,),     (1.0,),     (1.0,),     (0.0,)]
+xor_outputs = [(0.0,),     (1.0,),     (1.0,),     (0.0,)]
 
 
-def eval_genomes(genomes, config):
+def selection(genomes, config):
+    """ Runs a game for each genome and calculate its fitness function
+
+    Arguments:
+            genomes {list of neat genomes} -- current population
+            config {Config} -- config module specified by the config file
+    """
+
     for genome_id, genome in genomes:
-        genome.fitness = 4.0
         net = neat.nn.FeedForwardNetwork.create(genome, config)
-        for xi, xo in zip(xor_inputs, xor_outputs):
-            output = net.activate(xi)
-            genome.fitness -= (output[0] - xo[0]) ** 2
+
+        env.reset()
+
+        # score, reward(gym already calcs), coins*weight, x_pos, status(ONE HOT ENCODING: {'small', 'tall', 'fireball'}), time
+        # x_pos = 40 is the initial mario state from level 1, mario starts small and initial time is 400 secs
+        INPUT = [0, 0, 0, 40, 1, 0, 0, 400]
+        for step in range(STEPS):
+            if done:
+                state = env.reset()
+
+            state, reward, done, info = env.step(env.action_space.sample())
+
+            # Fixes:TypeError: Layout of the output array img is incompatible with cv::Mat (step[ndims-1] != elemsize or step[1] != elemsize*nchannels)
+            state = np.ascontiguousarray(state, dtype=np.uint8)
+
+            for point in utils.enemy_matches(state):
+                cv2.rectangle(
+                    state, point, (point[0] + 10, point[1] + 10), (0, 255, 255), 2)
+
+            cv2.imshow('matching', state)
+            if cv2.waitKey(25) & 0xFF == ord('q'):
+                cv2.destroyAllWindows()
+
+            output = net.activate(INPUT)
+            print(len(output), np.argmax(output))
+
+            return False
+
+            state, reward, done, info = env.step(ACTION)
+
+        #genome.fitness -= (output[0] - xo[0]) ** 2
 
 
 def run(config_file):
@@ -32,10 +75,10 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    #p.add_reporter(neat.Checkpointer(5))
+    # p.add_reporter(neat.Checkpointer(5))
 
     # Run for up to 300 generations.
-    winner = p.run(eval_genomes, 300)
+    winner = p.run(selection, 1)
 
     # Display the winning genome.
     #print('\nBest genome:\n{!s}'.format(winner))
@@ -64,29 +107,3 @@ if __name__ == '__main__':
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, config_file)
     run(config_path)
-
-
-
-# from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
-# import gym_super_mario_bros
-# from gym_super_mario_bros.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
-# env = gym_super_mario_bros.make('SuperMarioBros-v2')
-# env = BinarySpaceToDiscreteSpaceEnv(env, SIMPLE_MOVEMENT)
-# import numpy as np
-# import io
-
-
-# print(len(COMPLEX_MOVEMENT))
-
-# done = True
-# for step in range(5000):
-    
-#     if done:
-#         state = env.reset()
-    
-    
-#     state, reward, done, info = env.step(0)
-    
-#     env.render()
-
-# env.close()
