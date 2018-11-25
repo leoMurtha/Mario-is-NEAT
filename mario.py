@@ -172,6 +172,9 @@ if __name__ == '__main__':
         '-n', '--ngens', type=int, help='Number of generations', required=True)
     train.add_argument(
         '-s', '--steps', type=int, help='Number of steps of the mario gym env', required=True)
+    train.add_argument(
+        '-p', '--nproc', type=int, help='Number of processors', default=4)
+        
 
     evaluate_parser = subparsers.add_parser('evaluate', help='evaluate help')
     evaluate_parser.add_argument(
@@ -190,7 +193,7 @@ if __name__ == '__main__':
     if args.command == 'train':
         GENERATIONS = args.ngens
         STEPS = args.steps
-        run(config_path)
+        run(config_path, args.nproc)
     elif args.command == 'evaluate':
         genome_path = os.path.join(local_dir + 'genomes', args.genome)
         evaluate(genome_path , config_path)
