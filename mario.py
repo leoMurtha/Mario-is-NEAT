@@ -6,23 +6,30 @@ import utils
 import os
 import neat
 import visualize
+import logging
 from pickle import dump, load, HIGHEST_PROTOCOL
 # OpenAI Gym Imports
 from nes_py.wrappers import BinarySpaceToDiscreteSpaceEnv
 import gym_super_mario_bros
 from gym_super_mario_bros.actions import SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
-env = gym_super_mario_bros.make('SuperMarioBros-v2')
-env = BinarySpaceToDiscreteSpaceEnv(env, S)
+env = gym_super_mario_bros.make('SuperMarioBros-v0')
+env = BinarySpaceToDiscreteSpaceEnv(env, SIMPLE_MOVEMENT[1:])
 
 STEPS = 0
 GENERATIONS = 0
+EVALUATE_STEPS = 3000
 
-
-def eval(genome, config):
+def evaluate(genome_path, config_path):
+    genome = load(open(genome_path, 'rb'))
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_path)
+    
+    
     net = neat.nn.FeedForwardNetwork.create(genome, config)
 
     env.reset()
-    for step in range(STEPS):
+    while True:
         state, reward, done, info = env.step(env.action_space.sample())
 
         last_score = info['score']
@@ -35,20 +42,23 @@ def eval(genome, config):
         state = np.ascontiguousarray(state, dtype=np.uint8)
 
         matches = utils.enemy_matches(state)
-        distances = [(info['x_pos'] - point[0])
-                     if point else 0 for point in matches[:4]]
-        piranha_status = 1 if matches[4] else 0
+        distances = [1 if point and (abs(info['x_pos'] - point[0]) < 10) else 0 for point in matches[:4]]
+        #piranha_status = 1 if matches[4] else 0
 
         stimulus.extend(distances)
-        stimulus.append(piranha_status)
+        #stimulus.append(piranha_status)
 
         output = net.activate(stimulus)
         action = np.argmax(output)
 
         state, reward, done, info = env.step(action)
 
-        env.render()
+        state_r = cv2.resize(cv2.cvtColor(state,cv2.COLOR_BGR2RGB), (800,600))
 
+        cv2.imshow('evaluation', state_r)
+        if cv2.waitKey(25) & 0xFF == ord('q'):
+            cv2.destroyAllWindows()
+            return True
 
 def selection(genome, config):
     """ Runs a game for each genome and calculate its fitness function
@@ -91,85 +101,98 @@ def selection(genome, config):
         state = np.ascontiguousarray(state, dtype=np.uint8)
 
         matches = utils.enemy_matches(state)
-        distances = [(info['x_pos'] - point[0])
-                     if point else 0 for point in matches[:4]]
-        piranha_status = 1 if matches[4] else 0
+
+        distances = [1 if point and (abs(info['x_pos'] - point[0]) < 10) else 0 for point in matches[:4]]
+        #piranha_status = 1 if matches[4] else 0
 
         stimulus.extend(distances)
-        stimulus.append(piranha_status)
+        #stimulus.append(piranha_status)
 
         output = net.activate(stimulus)
         action = np.argmax(output)
 
         state, reward, done, info = env.step(action)
-        fitness += reward
 
-    fitness += last_score*0.1 + time_left*0.1
+        if info['flag_get']:
+            fitness += last_score*0.1 + time_left*0.1
+        
+        fitness += reward
 
     return fitness
 
 
-def run(config_file):
+def run(config_path, nproc=4):
+    print('[STARTING EVOLUTION] GENERATIONS %s STEPS %s' % (GENERATIONS, STEPS))
     # Load configuration.
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
-                         config_file)
-    """
+                         config_path)
+    
     # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
+    population = neat.Population(config)
 
     # Add a stdout reporter to show progress in the terminal.
-    p.add_reporter(neat.StdOutReporter(True))
+    population.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
-    p.add_reporter(stats)
-    # p.add_reporter(neat.Checkpointer(5))
+    population.add_reporter(stats)
+    # Saves a checkpoint every 10 generations
+    #population.add_reporter(neat.Checkpointer(10))
 
-    # Run for up to 300 generations.
-    pe = neat.ParallelEvaluator(4, selection)
-    best_genome = p.run(pe.evaluate, 2)
+    # Run for up to N = GENERATIONS generations.
+    parallel_eval = neat.ParallelEvaluator(nproc, selection)
+    best_genome = population.run(parallel_eval.evaluate, GENERATIONS)
 
-    eval(best_genome, config)
     # Display the winning genome.
     # print('\nBest genome:\n{!s}'.format(best_genome))
-
-    #eval(best_genome, config)
-    env.close()
-
+    
     # Saving best genome
-    print('Saving best genome to %s' % ('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS)))
-    dump(best_genome, open('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='wb'), protocol=HIGHEST_PROTOCOL)
-    """
-    s = load(open('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='rb'))
-    #STEPS = 5000
-    eval(s, config)
+    print('Saving best genome to genomes/%s' % ('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS)))
+    dump(best_genome, open('genomes/best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='wb'), protocol=HIGHEST_PROTOCOL)
+    
     #node_names = {-1:'A', -2: 'B', 0:'A XOR B'}
-    #visualize.draw_net(config, best_genome, True, filename='mario.gv' ,node_names=node_names)
-    #visualize.plot_stats(stats, ylog=False, view=True)
-    #visualize.plot_species(stats, view=True)
+    visualize.draw_net(config, best_genome, True, filename='mario.gv')
+    visualize.plot_stats(stats, ylog=False, view=True)
+    visualize.plot_species(stats, view=True)
 
     #p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-4')
     #p.run(eval_genomes, 10)
-
 
 if __name__ == '__main__':
     # Determine path to configuration file. This path manipulation is
     # here so that the script will run successfully regardless of the
     # current working directory.
     parser = argparse.ArgumentParser()
-    parser.add_argument(
+    
+    subparsers = parser.add_subparsers(help='sub-command help', dest='command')
+
+    train = subparsers.add_parser('train', help='train help')
+    train.add_argument(
         '-f', '--file', help='NEATs configuration filename', required=True)
-    parser.add_argument(
-        '-g', '--gens', help='Number of generations', required=True)
-    parser.add_argument(
-        '-s', '--steps', help='Number of steps of the mario gym env', required=True)
-        
-    #parser.add_argument('-d', '--dir', help='Configuration directory', required=True)
+    train.add_argument(
+        '-n', '--ngens', type=int, help='Number of generations', required=True)
+    train.add_argument(
+        '-s', '--steps', type=int, help='Number of steps of the mario gym env', required=True)
+
+    evaluate_parser = subparsers.add_parser('evaluate', help='evaluate help')
+    evaluate_parser.add_argument(
+        '-f', '--file', help='NEATs configuration filename', required=True)
+    evaluate_parser.add_argument(
+        '-g', '--genome', help='Genome.pkl filename', required=True)
+    
     args = parser.parse_args()
 
-    GENERATIONS = int(args.gens)
-    STEPS = int(args.steps)
-
+    # Common to both commands
     config_file = args.file
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir + 'config', config_file)
-    run(config_path)
+    
+    # Command selection
+    if args.command == 'train':
+        GENERATIONS = args.ngens
+        STEPS = args.steps
+        run(config_path)
+    elif args.command == 'evaluate':
+        genome_path = os.path.join(local_dir + 'genomes', args.genome)
+        evaluate(genome_path , config_path)
+    
+    env.close()
