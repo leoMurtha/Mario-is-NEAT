@@ -1,0 +1,7 @@
+numpy==1.14.5
+matplotlib==2.2.2
+graphviz==0.10.1
+gym==0.10.9
+gym_super_mario_bros==5.0.0
+neat==0.4.1
+nes_py==2.0.0

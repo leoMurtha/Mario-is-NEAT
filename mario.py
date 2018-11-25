@@ -149,11 +149,12 @@ def run(config_path, nproc=4):
     print('Saving best genome to genomes/%s' % ('best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS)))
     dump(best_genome, open('genomes/best_genome_g%s_s%s.pkl' % (GENERATIONS, STEPS), mode='wb'), protocol=HIGHEST_PROTOCOL)
     
+    """
     #node_names = {-1:'A', -2: 'B', 0:'A XOR B'}
     visualize.draw_net(config, best_genome, True, filename='mario.gv')
     visualize.plot_stats(stats, ylog=False, view=True)
     visualize.plot_species(stats, view=True)
-
+    """
     #p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-4')
     #p.run(eval_genomes, 10)
 
